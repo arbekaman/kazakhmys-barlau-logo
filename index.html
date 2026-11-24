@@ -49,6 +49,9 @@ html.light .glow{background:radial-gradient(closest-side, rgba(12,181,221,.16), 
 html.light .outline{opacity:.18;stroke:#3860a9}
 html.light .comet{filter:drop-shadow(0 0 5px rgba(12,181,221,.9)) drop-shadow(0 0 14px rgba(12,160,221,.55))}
 html.light .afterglow{filter:blur(3px) drop-shadow(0 0 12px rgba(12,181,221,.45))}
+/* облегчённый режим (слабые устройства): без SVG-фильтров, которые пересчитываются каждый кадр */
+html.lite .comet,html.lite .afterglow{filter:none}
+html.lite .glow{filter:none;animation:none;opacity:.6}
 html.light .tail{stroke:#0aa6d8}
 
 
@@ -68,6 +71,7 @@ html.light .tail{stroke:#0aa6d8}
 html.light #logo{--ink:url(#inkNavy);
   --kGlow:brightness(1.9) drop-shadow(0 0 10px rgba(12,181,221,.7));
   --bGlow:brightness(1.9) drop-shadow(0 0 14px rgba(255,190,40,.8))}
+html.lite #logo{--kGlow:var(--ink);--bGlow:var(--ink)}
 #logo img.k{--o:.92} #logo img.bl{--o:1} html.light #logo img.k{--o:1}
 #logo img.k,#logo img.bl{filter:var(--ink)}
 
@@ -220,11 +224,22 @@ function noise(x,y,z){
 }
 
 /* ---------- topographic contours: каждый кадр, без аллокаций ---------- */
-const CELL = 16;               // шаг сетки, CSS px
-const LEVELS = 16;
+/* ---------- облегчённый режим для слабых устройств (Samsung Flip, ТВ) ----------
+   ?lite — включить принудительно, ?full — запретить. Иначе: по браузеру Tizen/ТВ
+   или автоматически, если первые секунды анимация идёт медленнее ~22 кадров/с. */
+const QS = location.search;
+const FORCE_FULL = /[?&]full\b/.test(QS);
+let LITE = !FORCE_FULL && (/[?&]lite\b/.test(QS) || /Tizen|SMART-TV|SmartTV|Web0S/i.test(navigator.userAgent));
+let CELL = 16;               // шаг сетки, CSS px
+let LEVELS = 16;
+function applyLite(){
+  document.documentElement.classList.add('lite');
+  CELL = 32; LEVELS = 12;
+}
+if (LITE) applyLite();
 let field, gw = 0, gh = 0;
 function layout(){
-  W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, LITE ? 1 : 2);
   S = Math.min(W/1920, H/1080); OX = (W - 1920*S)/2; OY = (H - 1080*S)/2;
   stage.style.transform = `translate(${OX}px,${OY}px) scale(${S})`;
   bg.width = Math.round(W*DPR); bg.height = Math.round(H*DPR);
@@ -350,7 +365,7 @@ function toggleTheme(){ setTheme(themeTarget < .5, true); }
 /* ---------- пыль ---------- */
 let dust = [];
 function initDust(){
-  dust = Array.from({length: 90}, () => ({
+  dust = Array.from({length: LITE ? 40 : 90}, () => ({
     x: Math.random()*1920, y: Math.random()*1080, r: .6+Math.random()*2.2,
     vy: -(6+Math.random()*18), vx: (Math.random()-.5)*6, ph: Math.random()*6.28,
     gold: Math.random()<.55
@@ -406,14 +421,29 @@ function drawComet(now){
 
 /* ---------- цикл: рендер на каждом кадре дисплея (60/120/144 Гц) ---------- */
 let t0 = performance.now(), lastT = t0;
+let lastBg = t0, probeStart = 0, probeN = 0, probeDone = false;
 function frame(now){
+  requestAnimationFrame(frame);
+  if (LITE && now - lastT < 33) return;                // не чаще ~30 кадров/с
   const dt = Math.min(.05, (now-lastT)/1000); lastT = now;
+  // автопроверка: на слабом железе сами переходим в облегчённый режим
+  if (!LITE && !FORCE_FULL && !probeDone && now - t0 > 1500){
+    if (!probeStart) probeStart = now;
+    probeN++;
+    if (now - probeStart >= 2000){
+      probeDone = true;
+      if (probeN < 44){ LITE = true; applyLite(); layout(); initDust(); }   // меньше ~22 кадров/с
+    }
+  }
   themeMix += (themeTarget - themeMix) * Math.min(1, dt*4.5);
   const fadeIn = Math.min(1, (now - t0)/1800);
-  drawContours(now/1000, fadeIn);
-  drawDust(now, dt, fadeIn);
+  // фон (горизонтали + пыль) — самая тяжёлая часть; в облегчённом режиме ~8 раз в секунду
+  if (!LITE || now - lastBg >= 125){
+    const dtBg = Math.min(.2, (now - lastBg)/1000); lastBg = now;
+    drawContours(now/1000, fadeIn);
+    drawDust(now, LITE ? dtBg : dt, fadeIn);
+  }
   drawComet(now);
-  requestAnimationFrame(frame);
 }
 function restart(){
   document.body.classList.remove('play'); void document.body.offsetWidth; document.body.classList.add('play');
