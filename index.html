@@ -19,8 +19,8 @@ html.light,html.light body{background:#eef3f9}
 body{cursor:none;font-family:"KB Text",Inter,"Segoe UI",Arial,sans-serif;color:#fff}
 body.show-cursor{cursor:default}
 
-#bg{position:fixed;inset:0;width:100vw;height:100vh;display:block}
-.sky,.vig{position:fixed;inset:0;pointer-events:none;transition:opacity .8s ease}
+#bg{position:fixed;top:0;right:0;bottom:0;left:0;width:100vw;height:100vh;display:block}
+.sky,.vig{position:fixed;top:0;right:0;bottom:0;left:0;pointer-events:none;transition:opacity .8s ease}
 #skyD{background:radial-gradient(ellipse 80% 70% at 50% 42%, #0d2748 0%, #081830 45%, var(--navy) 100%)}
 #skyL{background:radial-gradient(ellipse 80% 70% at 50% 42%, #ffffff 0%, #f3f7fb 45%, #e2ebf5 100%);opacity:0}
 #vigD{background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(2,6,14,.75) 100%)}
@@ -32,7 +32,7 @@ html.light #skyL,html.light #vigL{opacity:1} html.light #skyD,html.light #vigD{o
 /* ---------- LOGO (статично, сразу сверху) ---------- */
 #logo{position:absolute;left:15px;top:73px;width:1907px;height:989px;transform-origin:945px 467px;
   transform:scale(.56)}
-#logo svg{position:absolute;inset:0;width:1907px;height:989px;overflow:visible}
+#logo svg{position:absolute;top:0;right:0;bottom:0;left:0;width:1907px;height:989px;overflow:visible}
 #logo img{position:absolute;display:block;user-select:none}
 .glow{position:absolute;left:420px;top:40px;width:1100px;height:700px;border-radius:50%;
   background:radial-gradient(closest-side, rgba(12,181,221,.30), rgba(56,96,169,.12) 55%, transparent 100%);
@@ -401,9 +401,16 @@ function restart(){
 }
 
 /* ---------- управление ---------- */
+// без ?. и с webkit-префиксами: старые движки (Samsung Flip / Tizen) иначе не разбирают весь скрипт
 function toggleFS(){
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
-  else document.exitFullscreen?.();
+  const d = document, el = d.documentElement;
+  if (!(d.fullscreenElement || d.webkitFullscreenElement)){
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req){ const r = req.call(el); if (r && r.catch) r.catch(()=>{}); }
+  } else {
+    const exit = d.exitFullscreen || d.webkitExitFullscreen;
+    if (exit){ const r = exit.call(d); if (r && r.catch) r.catch(()=>{}); }
+  }
 }
 addEventListener('keydown', e => {
   if (e.key==='f'||e.key==='F'||e.key==='а'||e.key==='А') toggleFS();
